@@ -1,51 +1,142 @@
-name: Update README with Latest Posts
+const fs = require('fs');
+const path = require('path');
+const matter = require('front-matter');
 
-on:
-  schedule:
-    # Run every day at 8:00 AM UTC (adjust as needed)
-    - cron: '0 8 * * *'
-  workflow_dispatch: # Allows manual triggering
-  push:
-    branches: [ main ]
-    paths: ['_posts/**'] # Only run when posts are updated
+// Configuration
+const POSTS_DIR = '_posts';
+const README_FILE = 'README.md';
+const MAX_POSTS = 5; // Number of latest posts to show
 
-jobs:
-  update-readme:
-    runs-on: ubuntu-latest
+function getPostsData() {
+  const posts = [];
+  
+  // Check if posts directory exists
+  if (!fs.existsSync(POSTS_DIR)) {
+    console.log('Posts directory not found. Checking for Jekyll site structure...');
+    return [];
+  }
+  
+  // Read all files in the posts directory
+  const files = fs.readdirSync(POSTS_DIR);
+  
+  for (const file of files) {
+    if (path.extname(file) === '.md') {
+      const filePath = path.join(POSTS_DIR, file);
+      const content = fs.readFileSync(filePath, 'utf8');
+      
+      try {
+        // Parse front matter
+        const parsed = matter(content);
+        const frontMatter = parsed.attributes;
+        
+        // Extract date from filename (Jekyll convention: YYYY-MM-DD-title.md)
+        const dateMatch = file.match(/^(\d{4}-\d{2}-\d{2})/);
+        const dateFromFilename = dateMatch ? dateMatch[1] : null;
+        
+        // Use date from front matter or filename
+        const postDate = frontMatter.date || dateFromFilename;
+        
+        if (postDate) {
+          // Extract title and create URL
+          const title = frontMatter.title || extractTitleFromContent(parsed.body);
+          const slug = file.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+          const url = `https://signaltosoftware.com/${slug}/`;
+          
+          posts.push({
+            title,
+            url,
+            date: new Date(postDate),
+            filename: file
+          });
+        }
+      } catch (error) {
+        console.warn(`Error parsing ${file}:`, error.message);
+      }
+    }
+  }
+  
+  // Sort posts by date (newest first)
+  return posts.sort((a, b) => b.date - a.date).slice(0, MAX_POSTS);
+}
+
+function extractTitleFromContent(content) {
+  // Try to extract title from first heading
+  const headingMatch = content.match(/^#\s+(.+)$/m);
+  if (headingMatch) {
+    return headingMatch[1].trim();
+  }
+  
+  // Fallback: use first line if it looks like a title
+  const lines = content.split('\n').filter(line => line.trim());
+  return lines[0] ? lines[0].trim() : 'Untitled Post';
+}
+
+function formatPostsForReadme(posts) {
+  if (posts.length === 0) {
+    return '- No posts available yet';
+  }
+  
+  return posts.map(post => {
+    // Format date as DD-MM-YYYY to match your existing format
+    const formattedDate = post.date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }).replace(/\//g, '-');
     
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0 # Fetch all history for all branches and tags
+    // Create URL with date format that matches your existing links
+    const urlWithDate = post.url.replace(/\/$/, `-${formattedDate}/`);
     
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-    
-    - name: Install dependencies
-      run: |
-        npm init -y
-        npm install js-yaml front-matter
-    
-    - name: Update README
-      run: node update-readme.js
-    
-    - name: Check for changes
-      id: verify-changed-files
-      run: |
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "changed=true" >> $GITHUB_OUTPUT
-        else
-          echo "changed=false" >> $GITHUB_OUTPUT
-        fi
-    
-    - name: Commit changes
-      if: steps.verify-changed-files.outputs.changed == 'true'
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add README.md
-        git commit -m "📝 Update README with latest blog posts"
-        git push
+    return `- [${post.title}](${urlWithDate})`;
+  }).join('\n');
+}
+
+function updateReadme(posts) {
+  let readmeContent = fs.readFileSync(README_FILE, 'utf8');
+  
+  // Find the blog posts section
+  const blogStartMarker = '### 📕 Latest Blog Post';
+  const nextSectionMarker = '### 📖 Currently Reading';
+  
+  const startIndex = readmeContent.indexOf(blogStartMarker);
+  const endIndex = readmeContent.indexOf(nextSectionMarker);
+  
+  if (startIndex === -1 || endIndex === -1) {
+    console.error('Could not find blog posts section markers in README.md');
+    return false;
+  }
+  
+  // Generate new blog posts section
+  const newBlogSection = `${blogStartMarker}\n${formatPostsForReadme(posts)}\n`;
+  
+  // Replace the blog posts section
+  const beforeSection = readmeContent.substring(0, startIndex);
+  const afterSection = readmeContent.substring(endIndex);
+  
+  const newReadmeContent = beforeSection + newBlogSection + afterSection;
+  
+  // Write updated README
+  fs.writeFileSync(README_FILE, newReadmeContent, 'utf8');
+  console.log('README.md updated successfully!');
+  return true;
+}
+
+// Main execution
+function main() {
+  console.log('Fetching latest posts...');
+  const posts = getPostsData();
+  
+  console.log(`Found ${posts.length} posts:`);
+  posts.forEach(post => {
+    console.log(`- ${post.title} (${post.date.toISOString().split('T')[0]})`);
+  });
+  
+  if (updateReadme(posts)) {
+    console.log('README update completed successfully!');
+  } else {
+    console.error('Failed to update README');
+    process.exit(1);
+  }
+}
+
+main();
