@@ -1,0 +1,51 @@
+name: Update README with Latest Posts
+
+on:
+  schedule:
+    # Run every day at 8:00 AM UTC (adjust as needed)
+    - cron: '0 8 * * *'
+  workflow_dispatch: # Allows manual triggering
+  push:
+    branches: [ main ]
+    paths: ['_posts/**'] # Only run when posts are updated
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Fetch all history for all branches and tags
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install dependencies
+      run: |
+        npm init -y
+        npm install js-yaml front-matter
+    
+    - name: Update README
+      run: node update-readme.js
+    
+    - name: Check for changes
+      id: verify-changed-files
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Commit changes
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md
+        git commit -m "📝 Update README with latest blog posts"
+        git push
