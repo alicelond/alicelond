@@ -8,8 +8,6 @@ const README_FILE = 'README.md';
 const MAX_POSTS = 5; // Number of latest posts to show
 
 const fs = require('fs');
-const path = require('path');
-const matter = require('front-matter');
 const https = require('https');
 
 // Configuration
@@ -38,6 +36,51 @@ function fetchFromGitHub(url) {
   });
 }
 
+function parseFrontMatter(content) {
+  const frontMatterRegex = /^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/;
+  const match = content.match(frontMatterRegex);
+  
+  if (!match) {
+    return { attributes: {}, body: content };
+  }
+  
+  const frontMatter = {};
+  const yamlContent = match[1];
+  const body = match[2];
+  
+  // Simple YAML parsing for title and date
+  const lines = yamlContent.split('\n');
+  for (const line of lines) {
+    const colonIndex = line.indexOf(':');
+    if (colonIndex > -1) {
+      const key = line.substring(0, colonIndex).trim();
+      let value = line.substring(colonIndex + 1).trim();
+      
+      // Remove quotes if present
+      if ((value.startsWith('"') && value.endsWith('"')) || 
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      
+      frontMatter[key] = value;
+    }
+  }
+  
+  return { attributes: frontMatter, body };
+}
+
+function extractTitleFromContent(content) {
+  // Try to extract title from first heading
+  const headingMatch = content.match(/^#\s+(.+)$/m);
+  if (headingMatch) {
+    return headingMatch[1].trim();
+  }
+  
+  // Fallback: use first line if it looks like a title
+  const lines = content.split('\n').filter(line => line.trim());
+  return lines[0] ? lines[0].trim() : 'Untitled Post';
+}
+
 async function getPostsData() {
   const posts = [];
   
@@ -49,18 +92,18 @@ async function getPostsData() {
       if (file.name.endsWith('.md')) {
         try {
           // Fetch the file content
-          const fileContent = await fetchFromGitHub(file.download_url);
+          const response = await fetchFromGitHub(file.download_url);
           let content;
           
-          if (typeof fileContent === 'string') {
-            content = fileContent;
+          if (typeof response === 'string') {
+            content = response;
           } else {
-            // If it's base64 encoded
-            content = Buffer.from(fileContent.content || '', 'base64').toString('utf8');
+            console.log(`Fetching content for ${file.name}...`);
+            continue; // Skip if we can't get the content directly
           }
           
           // Parse front matter
-          const parsed = matter(content);
+          const parsed = parseFrontMatter(content);
           const frontMatter = parsed.attributes;
           
           // Extract date from filename (Jekyll convention: YYYY-MM-DD-title.md)
@@ -107,18 +150,6 @@ async function getPostsData() {
   
   // Sort posts by date (newest first)
   return posts.sort((a, b) => b.date - a.date).slice(0, MAX_POSTS);
-}
-
-function extractTitleFromContent(content) {
-  // Try to extract title from first heading
-  const headingMatch = content.match(/^#\s+(.+)$/m);
-  if (headingMatch) {
-    return headingMatch[1].trim();
-  }
-  
-  // Fallback: use first line if it looks like a title
-  const lines = content.split('\n').filter(line => line.trim());
-  return lines[0] ? lines[0].trim() : 'Untitled Post';
 }
 
 function formatPostsForReadme(posts) {
