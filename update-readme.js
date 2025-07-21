@@ -7,64 +7,102 @@ const POSTS_DIR = '_posts';
 const README_FILE = 'README.md';
 const MAX_POSTS = 5; // Number of latest posts to show
 
-function getPostsData() {
+const fs = require('fs');
+const path = require('path');
+const matter = require('front-matter');
+const https = require('https');
+
+// Configuration
+const BLOG_REPO = 'alicelond/alicelond.github.io';
+const GITHUB_API_URL = `https://api.github.com/repos/${BLOG_REPO}/contents/_posts`;
+const README_FILE = 'README.md';
+const MAX_POSTS = 5; // Number of latest posts to show
+
+function fetchFromGitHub(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, {
+      headers: {
+        'User-Agent': 'GitHub-Action-README-Update'
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          resolve(JSON.parse(data));
+        } else {
+          reject(new Error(`GitHub API returned ${res.statusCode}: ${data}`));
+        }
+      });
+    }).on('error', reject);
+  });
+}
+
+async function getPostsData() {
   const posts = [];
   
-  // Check if posts directory exists
-  if (!fs.existsSync(POSTS_DIR)) {
-    console.log('Posts directory not found. Checking for Jekyll site structure...');
-    return [];
-  }
-  
-  // Read all files in the posts directory
-  const files = fs.readdirSync(POSTS_DIR);
-  
-  for (const file of files) {
-    if (path.extname(file) === '.md') {
-      const filePath = path.join(POSTS_DIR, file);
-      const content = fs.readFileSync(filePath, 'utf8');
-      
-      try {
-        // Parse front matter
-        const parsed = matter(content);
-        const frontMatter = parsed.attributes;
-        
-        // Extract date from filename (Jekyll convention: YYYY-MM-DD-title.md)
-        const dateMatch = file.match(/^(\d{4}-\d{2}-\d{2})/);
-        const dateFromFilename = dateMatch ? dateMatch[1] : null;
-        
-        // Use date from front matter or filename
-        const postDate = frontMatter.date || dateFromFilename;
-        
-        if (postDate) {
-          // Extract title and create URL matching your format
-          const title = frontMatter.title || extractTitleFromContent(parsed.body);
+  try {
+    console.log('Fetching posts from GitHub API...');
+    const files = await fetchFromGitHub(GITHUB_API_URL);
+    
+    for (const file of files) {
+      if (file.name.endsWith('.md')) {
+        try {
+          // Fetch the file content
+          const fileContent = await fetchFromGitHub(file.download_url);
+          let content;
           
-          // Extract slug from filename (remove date prefix and .md extension)
-          let slug = file.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+          if (typeof fileContent === 'string') {
+            content = fileContent;
+          } else {
+            // If it's base64 encoded
+            content = Buffer.from(fileContent.content || '', 'base64').toString('utf8');
+          }
           
-          // Format date as DD-MM-YYYY to match your URL pattern
-          const date = new Date(postDate);
-          const formattedDate = date.toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-          }).replace(/\//g, '-');
+          // Parse front matter
+          const parsed = matter(content);
+          const frontMatter = parsed.attributes;
           
-          // Create URL in your format: slug-DD-MM-YYYY/
-          const url = `https://signaltosoftware.com/${slug}-${formattedDate}/`;
+          // Extract date from filename (Jekyll convention: YYYY-MM-DD-title.md)
+          const dateMatch = file.name.match(/^(\d{4}-\d{2}-\d{2})/);
+          const dateFromFilename = dateMatch ? dateMatch[1] : null;
           
-          posts.push({
-            title,
-            url,
-            date: date,
-            filename: file
-          });
+          // Use date from front matter or filename
+          const postDate = frontMatter.date || dateFromFilename;
+          
+          if (postDate) {
+            // Extract title and create URL matching your format
+            const title = frontMatter.title || extractTitleFromContent(parsed.body);
+            
+            // Extract slug from filename (remove date prefix and .md extension)
+            let slug = file.name.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+            
+            // Format date as DD-MM-YYYY to match your URL pattern
+            const date = new Date(postDate);
+            const formattedDate = date.toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric'
+            }).replace(/\//g, '-');
+            
+            // Create URL in your format: slug-DD-MM-YYYY/
+            const url = `https://signaltosoftware.com/${slug}-${formattedDate}/`;
+            
+            posts.push({
+              title,
+              url,
+              date: date,
+              filename: file.name
+            });
+          }
+        } catch (error) {
+          console.warn(`Error parsing ${file.name}:`, error.message);
         }
-      } catch (error) {
-        console.warn(`Error parsing ${file}:`, error.message);
       }
     }
+  } catch (error) {
+    console.error('Error fetching posts from GitHub:', error.message);
+    return [];
   }
   
   // Sort posts by date (newest first)
@@ -125,9 +163,9 @@ function updateReadme(posts) {
 }
 
 // Main execution
-function main() {
-  console.log('Fetching latest posts...');
-  const posts = getPostsData();
+async function main() {
+  console.log('Fetching latest posts from alicelond.github.io...');
+  const posts = await getPostsData();
   
   console.log(`Found ${posts.length} posts:`);
   posts.forEach(post => {
@@ -142,4 +180,7 @@ function main() {
   }
 }
 
-main();
+main().catch(error => {
+  console.error('Script failed:', error);
+  process.exit(1);
+});
