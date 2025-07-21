@@ -1,38 +1,65 @@
 const fs = require('fs');
-const path = require('path');
-const matter = require('front-matter');
-
-// Configuration
-const POSTS_DIR = '_posts';
-const README_FILE = 'README.md';
-const MAX_POSTS = 5; // Number of latest posts to show
-
-const fs = require('fs');
 const https = require('https');
 
 // Configuration
 const BLOG_REPO = 'alicelond/alicelond.github.io';
 const GITHUB_API_URL = `https://api.github.com/repos/${BLOG_REPO}/contents/_posts`;
 const README_FILE = 'README.md';
-const MAX_POSTS = 5; // Number of latest posts to show
+const MAX_POSTS = 5;
 
 function fetchFromGitHub(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, {
+    const request = https.get(url, {
       headers: {
         'User-Agent': 'GitHub-Action-README-Update'
       }
-    }, (res) => {
+    }, (response) => {
       let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          resolve(JSON.parse(data));
-        } else {
-          reject(new Error(`GitHub API returned ${res.statusCode}: ${data}`));
+      response.on('data', chunk => data += chunk);
+      response.on('end', () => {
+        try {
+          if (response.statusCode === 200) {
+            resolve(JSON.parse(data));
+          } else {
+            reject(new Error(`GitHub API returned ${response.statusCode}`));
+          }
+        } catch (error) {
+          reject(new Error(`Failed to parse JSON: ${error.message}`));
         }
       });
-    }).on('error', reject);
+    });
+    
+    request.on('error', reject);
+    request.setTimeout(10000, () => {
+      request.destroy();
+      reject(new Error('Request timeout'));
+    });
+  });
+}
+
+function fetchFileContent(url) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, {
+      headers: {
+        'User-Agent': 'GitHub-Action-README-Update'
+      }
+    }, (response) => {
+      let data = '';
+      response.on('data', chunk => data += chunk);
+      response.on('end', () => {
+        if (response.statusCode === 200) {
+          resolve(data);
+        } else {
+          reject(new Error(`Failed to fetch file: ${response.statusCode}`));
+        }
+      });
+    });
+    
+    request.on('error', reject);
+    request.setTimeout(10000, () => {
+      request.destroy();
+      reject(new Error('File fetch timeout'));
+    });
   });
 }
 
@@ -48,7 +75,6 @@ function parseFrontMatter(content) {
   const yamlContent = match[1];
   const body = match[2];
   
-  // Simple YAML parsing for title and date
   const lines = yamlContent.split('\n');
   for (const line of lines) {
     const colonIndex = line.indexOf(':');
@@ -56,7 +82,6 @@ function parseFrontMatter(content) {
       const key = line.substring(0, colonIndex).trim();
       let value = line.substring(colonIndex + 1).trim();
       
-      // Remove quotes if present
       if ((value.startsWith('"') && value.endsWith('"')) || 
           (value.startsWith("'") && value.endsWith("'"))) {
         value = value.slice(1, -1);
@@ -70,13 +95,11 @@ function parseFrontMatter(content) {
 }
 
 function extractTitleFromContent(content) {
-  // Try to extract title from first heading
   const headingMatch = content.match(/^#\s+(.+)$/m);
   if (headingMatch) {
     return headingMatch[1].trim();
   }
   
-  // Fallback: use first line if it looks like a title
   const lines = content.split('\n').filter(line => line.trim());
   return lines[0] ? lines[0].trim() : 'Untitled Post';
 }
@@ -88,47 +111,32 @@ async function getPostsData() {
     console.log('Fetching posts from GitHub API...');
     const files = await fetchFromGitHub(GITHUB_API_URL);
     
+    console.log(`Found ${files.length} files in _posts directory`);
+    
     for (const file of files) {
       if (file.name.endsWith('.md')) {
         try {
-          // Fetch the file content
-          const response = await fetchFromGitHub(file.download_url);
-          let content;
+          console.log(`Processing ${file.name}...`);
           
-          if (typeof response === 'string') {
-            content = response;
-          } else {
-            console.log(`Fetching content for ${file.name}...`);
-            continue; // Skip if we can't get the content directly
-          }
-          
-          // Parse front matter
+          const content = await fetchFileContent(file.download_url);
           const parsed = parseFrontMatter(content);
           const frontMatter = parsed.attributes;
           
-          // Extract date from filename (Jekyll convention: YYYY-MM-DD-title.md)
           const dateMatch = file.name.match(/^(\d{4}-\d{2}-\d{2})/);
           const dateFromFilename = dateMatch ? dateMatch[1] : null;
           
-          // Use date from front matter or filename
           const postDate = frontMatter.date || dateFromFilename;
           
           if (postDate) {
-            // Extract title and create URL matching your format
             const title = frontMatter.title || extractTitleFromContent(parsed.body);
-            
-            // Extract slug from filename (remove date prefix and .md extension)
             let slug = file.name.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
             
-            // Format date as DD-MM-YYYY to match your URL pattern
             const date = new Date(postDate);
-            const formattedDate = date.toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric'
-            }).replace(/\//g, '-');
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            const formattedDate = `${day}-${month}-${year}`;
             
-            // Create URL in your format: slug-DD-MM-YYYY/
             const url = `https://signaltosoftware.com/${slug}-${formattedDate}/`;
             
             posts.push({
@@ -137,9 +145,11 @@ async function getPostsData() {
               date: date,
               filename: file.name
             });
+            
+            console.log(`✓ Added: ${title}`);
           }
         } catch (error) {
-          console.warn(`Error parsing ${file.name}:`, error.message);
+          console.warn(`⚠ Error parsing ${file.name}: ${error.message}`);
         }
       }
     }
@@ -148,7 +158,6 @@ async function getPostsData() {
     return [];
   }
   
-  // Sort posts by date (newest first)
   return posts.sort((a, b) => b.date - a.date).slice(0, MAX_POSTS);
 }
 
@@ -157,61 +166,60 @@ function formatPostsForReadme(posts) {
     return '- No posts available yet';
   }
   
-  return posts.map(post => {
-    // URL is already formatted correctly in getPostsData()
-    return `- [${post.title}](${post.url})`;
-  }).join('\n');
+  return posts.map(post => `- [${post.title}](${post.url})`).join('\n');
 }
 
 function updateReadme(posts) {
-  let readmeContent = fs.readFileSync(README_FILE, 'utf8');
-  
-  // Find the blog posts section
-  const blogStartMarker = '### 📕 Latest Blog Post';
-  const nextSectionMarker = '### 📖 Currently Reading';
-  
-  const startIndex = readmeContent.indexOf(blogStartMarker);
-  const endIndex = readmeContent.indexOf(nextSectionMarker);
-  
-  if (startIndex === -1 || endIndex === -1) {
-    console.error('Could not find blog posts section markers in README.md');
+  try {
+    let readmeContent = fs.readFileSync(README_FILE, 'utf8');
+    
+    const blogStartMarker = '### 📕 Latest Blog Post';
+    const nextSectionMarker = '### 📖 Currently Reading';
+    
+    const startIndex = readmeContent.indexOf(blogStartMarker);
+    const endIndex = readmeContent.indexOf(nextSectionMarker);
+    
+    if (startIndex === -1 || endIndex === -1) {
+      console.error('Could not find blog posts section markers in README.md');
+      return false;
+    }
+    
+    const newBlogSection = `${blogStartMarker}\n${formatPostsForReadme(posts)}\n`;
+    const beforeSection = readmeContent.substring(0, startIndex);
+    const afterSection = readmeContent.substring(endIndex);
+    const newReadmeContent = beforeSection + newBlogSection + afterSection;
+    
+    fs.writeFileSync(README_FILE, newReadmeContent, 'utf8');
+    console.log('✓ README.md updated successfully!');
+    return true;
+  } catch (error) {
+    console.error('Error updating README:', error.message);
     return false;
   }
-  
-  // Generate new blog posts section
-  const newBlogSection = `${blogStartMarker}\n${formatPostsForReadme(posts)}\n`;
-  
-  // Replace the blog posts section
-  const beforeSection = readmeContent.substring(0, startIndex);
-  const afterSection = readmeContent.substring(endIndex);
-  
-  const newReadmeContent = beforeSection + newBlogSection + afterSection;
-  
-  // Write updated README
-  fs.writeFileSync(README_FILE, newReadmeContent, 'utf8');
-  console.log('README.md updated successfully!');
-  return true;
 }
 
-// Main execution
 async function main() {
-  console.log('Fetching latest posts from alicelond.github.io...');
-  const posts = await getPostsData();
-  
-  console.log(`Found ${posts.length} posts:`);
-  posts.forEach(post => {
-    console.log(`- ${post.title} (${post.date.toISOString().split('T')[0]})`);
-  });
-  
-  if (updateReadme(posts)) {
-    console.log('README update completed successfully!');
-  } else {
-    console.error('Failed to update README');
+  try {
+    console.log('🚀 Starting README update...');
+    console.log(`📡 Fetching latest posts from ${BLOG_REPO}...`);
+    
+    const posts = await getPostsData();
+    
+    console.log(`\n📝 Found ${posts.length} posts:`);
+    posts.forEach((post, index) => {
+      console.log(`${index + 1}. ${post.title} (${post.date.toISOString().split('T')[0]})`);
+    });
+    
+    if (updateReadme(posts)) {
+      console.log('\n✅ README update completed successfully!');
+    } else {
+      console.error('\n❌ Failed to update README');
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error('❌ Script failed:', error.message);
     process.exit(1);
   }
 }
 
-main().catch(error => {
-  console.error('Script failed:', error);
-  process.exit(1);
-});
+main();
