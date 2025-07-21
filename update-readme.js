@@ -112,32 +112,51 @@ async function getPostsData() {
     const files = await fetchFromGitHub(GITHUB_API_URL);
     
     console.log(`Found ${files.length} files in _posts directory`);
+    console.log('Files:', files.map(f => f.name).join(', '));
     
     for (const file of files) {
+      console.log(`\n--- Processing file: ${file.name} ---`);
+      
       if (file.name.endsWith('.md')) {
         try {
-          console.log(`Processing ${file.name}...`);
+          console.log(`✓ Markdown file detected: ${file.name}`);
+          console.log(`Download URL: ${file.download_url}`);
           
           const content = await fetchFileContent(file.download_url);
+          console.log(`✓ Content fetched, length: ${content.length} characters`);
+          console.log(`First 200 chars: ${content.substring(0, 200)}...`);
+          
           const parsed = parseFrontMatter(content);
+          console.log(`✓ Front matter parsed:`, parsed.attributes);
+          
           const frontMatter = parsed.attributes;
           
           const dateMatch = file.name.match(/^(\d{4}-\d{2}-\d{2})/);
           const dateFromFilename = dateMatch ? dateMatch[1] : null;
+          console.log(`Date from filename: ${dateFromFilename}`);
+          console.log(`Date from front matter: ${frontMatter.date}`);
           
           const postDate = frontMatter.date || dateFromFilename;
+          console.log(`Final post date: ${postDate}`);
           
           if (postDate) {
             const title = frontMatter.title || extractTitleFromContent(parsed.body);
+            console.log(`Post title: ${title}`);
+            
             let slug = file.name.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+            console.log(`Slug: ${slug}`);
             
             const date = new Date(postDate);
+            console.log(`Date object: ${date}`);
+            
             const day = String(date.getDate()).padStart(2, '0');
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const year = date.getFullYear();
             const formattedDate = `${day}-${month}-${year}`;
+            console.log(`Formatted date: ${formattedDate}`);
             
             const url = `https://signaltosoftware.com/${slug}-${formattedDate}/`;
+            console.log(`Generated URL: ${url}`);
             
             posts.push({
               title,
@@ -146,15 +165,24 @@ async function getPostsData() {
               filename: file.name
             });
             
-            console.log(`✓ Added: ${title}`);
+            console.log(`✅ Successfully added post: ${title}`);
+          } else {
+            console.log(`❌ No valid date found for ${file.name}`);
           }
         } catch (error) {
           console.warn(`⚠ Error parsing ${file.name}: ${error.message}`);
+          console.warn(`Error stack: ${error.stack}`);
         }
+      } else {
+        console.log(`⚠ Skipping non-markdown file: ${file.name}`);
       }
     }
+    
+    console.log(`\n📊 Total posts processed: ${posts.length}`);
+    
   } catch (error) {
-    console.error('Error fetching posts from GitHub:', error.message);
+    console.error('❌ Error fetching posts from GitHub:', error.message);
+    console.error('Error stack:', error.stack);
     return [];
   }
   
