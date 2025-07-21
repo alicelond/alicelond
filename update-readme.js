@@ -37,15 +37,27 @@ function getPostsData() {
         const postDate = frontMatter.date || dateFromFilename;
         
         if (postDate) {
-          // Extract title and create URL
+          // Extract title and create URL matching your format
           const title = frontMatter.title || extractTitleFromContent(parsed.body);
-          const slug = file.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
-          const url = `https://signaltosoftware.com/${slug}/`;
+          
+          // Extract slug from filename (remove date prefix and .md extension)
+          let slug = file.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+          
+          // Format date as DD-MM-YYYY to match your URL pattern
+          const date = new Date(postDate);
+          const formattedDate = date.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          }).replace(/\//g, '-');
+          
+          // Create URL in your format: slug-DD-MM-YYYY/
+          const url = `https://signaltosoftware.com/${slug}-${formattedDate}/`;
           
           posts.push({
             title,
             url,
-            date: new Date(postDate),
+            date: date,
             filename: file
           });
         }
@@ -77,17 +89,8 @@ function formatPostsForReadme(posts) {
   }
   
   return posts.map(post => {
-    // Format date as DD-MM-YYYY to match your existing format
-    const formattedDate = post.date.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    }).replace(/\//g, '-');
-    
-    // Create URL with date format that matches your existing links
-    const urlWithDate = post.url.replace(/\/$/, `-${formattedDate}/`);
-    
-    return `- [${post.title}](${urlWithDate})`;
+    // URL is already formatted correctly in getPostsData()
+    return `- [${post.title}](${post.url})`;
   }).join('\n');
 }
 
