@@ -6,7 +6,8 @@
 
 ---
 ### 📕 Latest Blog Post
-- No posts available yet
+- [A software engineer's guide to evidence-based decisions](https://signaltosoftware.com/evidence-based-17-07-2025/)
+- [7 common mistakes on computer performance evaluation](https://signaltosoftware.com/common-mistakes-11-07-2025/)
 ### 📖 Currently Reading 
 
 - [The Art of Computer Systems Performance Analysis](https://www.amazon.com/Art-Computer-Systems-Performance-Analysis/dp/0471503363)
