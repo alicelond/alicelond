@@ -12,13 +12,15 @@ on:
 jobs:
   update-readme:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # This gives the action permission to write to the repo
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0 # Fetch all history for all branches and tags
-        repository: alicelond/alicelond.github.io # Your actual repository
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
     
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -27,8 +29,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        npm init -y
-        npm install js-yaml front-matter
+        npm install front-matter
     
     - name: Update README
       run: node update-readme.js
