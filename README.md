@@ -6,6 +6,7 @@
 
 ---
 ### 📕 Latest Blog Post
+- [5 most common software security vulnerabilities](https://signaltosoftware.com/common-security-vulnerabilities-05-08-2025/)
 - [A software engineer's guide to evidence-based decisions](https://signaltosoftware.com/evidence-based-17-07-2025/)
 - [7 common mistakes on computer performance evaluation](https://signaltosoftware.com/common-mistakes-11-07-2025/)
 ### 📖 Currently Reading 
