@@ -13,8 +13,7 @@
 - [The engineering of Android's earthquake alert system](https://signaltosoftware.com/earthquake-16-09-2025/)
 ### 📖 Currently Reading 
 
-- [The Art of Computer Systems Performance Analysis](https://www.amazon.com/Art-Computer-Systems-Performance-Analysis/dp/0471503363)
-- [Real–Time Digital Signal Processing](https://www.amazon.com.br/Real-Time-Digital-Signal-Processing-Implementations/dp/0470014954)
+- [Introduction to algorithms]([https://www.amazon.com/Art-Computer-Systems-Performance-Analysis/dp/0471503363](https://www.amazon.com/Introduction-Algorithms-3rd-MIT-Press/dp/0262033844))
 
 ---
 ### 📋 Languages 
