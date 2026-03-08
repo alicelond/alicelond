@@ -1,8 +1,8 @@
 ## Hello, I'm [Alice Becker Londero](https://signaltosoftware.com/)!
 ---
 - I'm an acoustical and software engineer based in São Paulo, Brazil.
-- Currently I'm pursuing a Master's degree in Computer Science.
-- My main research theme now is digital signal processing for real-time systems applied to vibration signals acquired from embedded systems.
+- Currently, I'm pursuing a Master's degree in Computer Science. My main research theme now is digital signal processing for real-time systems applied to vibration signals acquired from embedded systems.
+- I work as a Software Engineer at Bosch Brazil, where I work on software development of tools for engine calibration engineers.
 
 ---
 ### 📕 Latest Blog Post
