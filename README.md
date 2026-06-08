@@ -5,8 +5,8 @@
 - I work as a Software Engineer at Bosch Brazil, where I work on software development of tools for engine calibration engineers.
 
 ---
-### 📕 Latest Blog Post
-- No posts available yet
+### 📕 Check out my blog
+- [From signal to software](https://signaltosoftware.com/)
 ### 📖 Currently Reading 
 
 - [Introduction to algorithms](https://www.amazon.com/Art-Computer-Systems-Performance-Analysis/dp/0471503363](https://www.amazon.com/Introduction-Algorithms-3rd-MIT-Press/dp/0262033844))
